@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Profile and Tabs Manager",
+  "version": "1.0",
+  "description": "Manage Chrome profiles, tabs, and save pages offline",
+  "permissions": [
+    "tabs",
+    "windows",
+    "pageCapture",
+    "storage",
+    "identity",
+    "notifications",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_icon": "icon.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  }
+}
