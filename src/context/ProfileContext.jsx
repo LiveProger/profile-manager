@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect } from "react";
 
 export const ProfileContext = createContext();
 
@@ -9,17 +9,13 @@ export const ProfileProvider = ({ children }) => {
     if (typeof chrome !== "undefined" && chrome.runtime) {
       chrome.runtime.sendMessage({ action: "getProfiles" }, (response) => {
         if (chrome.runtime.lastError) {
-          console.error("Error fetching profiles:", chrome.runtime.lastError);
-          // Не сбрасываем profiles, оставляем текущее состояние
           if (callback) callback();
         } else {
-          console.log("Setting profiles in context:", response.profiles || []);
           setProfiles(response.profiles || []);
           if (callback) callback();
         }
       });
     } else {
-      console.warn("Chrome API is not available. Running in dev mode.");
       setProfiles([
         {
           profileId: "mock1",
@@ -35,7 +31,6 @@ export const ProfileProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    console.log("ProfileContext useEffect triggered");
     refreshProfiles();
   }, []);
 

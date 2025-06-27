@@ -8,8 +8,6 @@
     "windows",
     "pageCapture",
     "storage",
-    "identity",
-    "notifications",
     "nativeMessaging"
   ],
   "host_permissions": [
