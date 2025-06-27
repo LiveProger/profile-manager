@@ -1,3 +1,75 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Стили для секции Saved Pages */
+.settings-panel {
+  position: absolute;
+  top: 100px; /* Отступ от верха */
+  left: 50%;
+  transform: translateX(-50%); /* Центрирование по горизонтали */
+  width: 90%;
+  max-width: 600px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 1000; /* Поверх всех элементов */
+  padding: 16px;
+}
+
+/* Стили для кнопки-крестика */
+.close-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  transition: transform 0.2s ease;
+}
+
+.close-button:hover {
+  transform: scale(1.1);
+}
+
+/* Анимация появления */
+.settings-panel-enter {
+  opacity: 0;
+  transform: translate(-50%, -20px); /* Смещение вверх */
+  animation: settingsFadeIn 0.3s ease-out forwards;
+}
+
+/* Анимация исчезновения */
+.settings-panel-exit {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  animation: settingsFadeOut 0.3s ease-out forwards;
+}
+
+@keyframes settingsFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes settingsFadeOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+}
+
+/* Стили для кнопок и других элементов */
+button {
+  transition: background-color 0.2s ease;
+}
