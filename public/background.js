@@ -202,7 +202,6 @@ async function updateProfiles(manual = false) {
     }
     const profiles = await response.json();
     console.log("Received profiles:", profiles);
-    // Проверяем, что профили содержат вкладки, прежде чем отправлять
     if (
       profiles.length > 0 &&
       profiles.some((p) => p.tabs && p.tabs.length > 0)
@@ -210,7 +209,6 @@ async function updateProfiles(manual = false) {
       chrome.runtime.sendMessage({ action: "updateProfiles", profiles });
     } else {
       console.warn("No tabs in profiles, delaying update");
-      // Можно добавить повторный запрос через небольшую задержку
       setTimeout(() => updateProfiles(manual), 1000);
     }
     return profiles;
@@ -377,6 +375,47 @@ async function savePage(tabId, url, title) {
   }
 }
 
+async function deleteProfile(profileId) {
+  try {
+    const currentProfileId = await getCurrentProfileId();
+    const isCurrentProfile = profileId.toLowerCase() === currentProfileId;
+
+    const response = await fetch("http://localhost:3000/profile", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId: profileId.toLowerCase() }),
+    });
+
+    console.log("Delete profile response:", response.status, response.statusText);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete profile: ${response.statusText} (${errorText})`);
+    }
+
+    if (isCurrentProfile) {
+      await new Promise((resolve) => chrome.storage.local.remove("profileId", resolve));
+      console.log("Cleared current profileId from storage");
+      const profiles = await fetch("http://localhost:3000/profiles").then((res) => res.json());
+      if (profiles.length > 0) {
+        console.log("Triggering profile selection after deleting current profile");
+        chrome.runtime.sendMessage({
+          action: "selectProfile",
+          profiles: profiles.map((p) => ({
+            profileId: p.profileId,
+            profileName: p.profileName,
+          })),
+        });
+      }
+    }
+
+    await updateProfiles(true);
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting profile:", error.message);
+    return { error: error.message };
+  }
+}
+
 async function openInProfile(url, profileId) {
   try {
     const currentProfileId = await getCurrentProfileId();
@@ -407,7 +446,6 @@ async function openInProfile(url, profileId) {
       return { success: true };
     }
 
-    // Получаем профили для определения profileDir
     const profilesResponse = await fetch(
       `http://localhost:3000/profiles?currentProfileId=${currentProfileId}`
     );
@@ -425,14 +463,11 @@ async function openInProfile(url, profileId) {
     }
     const profileDir = targetProfile.profileDir || "Default";
 
-    // Проверяем существующие окна (упрощённая проверка, так как tabs.url не содержит --profile-directory)
     const windows = await new Promise((resolve) =>
       chrome.windows.getAll({ populate: true }, resolve)
     );
     let targetWindow = null;
     for (const win of windows) {
-      // Поскольку tabs.url не содержит информацию о профиле, полагаемся на server.js
-      // Альтернативно, можно добавить дополнительную логику проверки через сервер
       if (win.tabs.some((tab) => tab.url === url)) {
         targetWindow = win;
         break;
@@ -588,6 +623,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     }
     return true;
+  } else if (request.action === "deleteProfile") {
+    deleteProfile(request.profileId)
+      .then((result) => {
+        console.log("Delete profile result:", result);
+        sendResponse({ success: !!result.success, ...result });
+      })
+      .catch((error) => {
+        console.error("Error in deleteProfile:", error);
+        sendResponse({ error: error.message });
+      });
+    return true;
   }
   sendResponse({ error: "Unknown action" });
   return false;
@@ -595,7 +641,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 chrome.windows.onCreated.addListener(() => {
   console.log("Window created, checking if profile update is needed");
-  // Вызываем updateProfiles только если есть активный профиль
   getCurrentProfileId().then((currentProfileId) => {
     if (currentProfileId) {
       updateProfiles(true);

@@ -65,7 +65,6 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     ).finally(() => {
       setIsOperationPending((prev) => ({ ...prev, [operationKey]: false }));
       setIsLoading(false);
-      // Вызываем fetchSavedPages и refreshProfiles без тостов
       fetchSavedPages({ silent: true });
       refreshProfiles().catch((error) => console.error("Silent refreshProfiles failed:", error));
     });
@@ -122,7 +121,35 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     ).finally(() => {
       setIsOperationPending((prev) => ({ ...prev, [operationKey]: false }));
       setIsLoading(false);
-      // Вызываем fetchSavedPages и refreshProfiles без тостов
+      fetchSavedPages({ silent: true });
+      refreshProfiles().catch((error) => console.error("Silent refreshProfiles failed:", error));
+    });
+  };
+
+  const deleteProfile = () => {
+    const operationKey = `delete-profile-${profile.profileId}`;
+    if (isOperationPending[operationKey]) return;
+    setIsOperationPending((prev) => ({ ...prev, [operationKey]: true }));
+    const promise = new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action: "deleteProfile", profileId: profile.profileId }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(`Failed to delete profile: ${chrome.runtime.lastError.message}`));
+        } else if (response?.success) {
+          resolve();
+        } else {
+          reject(new Error(`Failed to delete profile: ${response?.error || "Unknown error"}`));
+        }
+      });
+    });
+    setIsLoading(true);
+    toastPromise(
+      promise,
+      `Deleting profile: ${profile.profileName}...`,
+      `Deleted profile: ${profile.profileName}`,
+      `Failed to delete profile: ${profile.profileName}`
+    ).finally(() => {
+      setIsOperationPending((prev) => ({ ...prev, [operationKey]: false }));
+      setIsLoading(false);
       fetchSavedPages({ silent: true });
       refreshProfiles().catch((error) => console.error("Silent refreshProfiles failed:", error));
     });
@@ -154,9 +181,19 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     <div
       className={`bg-white p-4 rounded shadow mb-4 ${profile.isCurrent ? "border-2 border-blue-500" : ""}`}
     >
-      <h2 className="text-lg font-semibold mb-2">
-        {profile.profileName} {profile.isCurrent && "(Current)"}
-      </h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-lg font-semibold">
+          {profile.profileName} {profile.isCurrent && "(Current)"}
+        </h2>
+        <button
+          className="bg-red-500 text-white px-2 py-1 rounded text-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={deleteProfile}
+          disabled={isOperationPending[`delete-profile-${profile.profileId}`]}
+          title="Delete profile"
+        >
+          Delete Profile
+        </button>
+      </div>
       <div className="mt-4">
         <h3 className="font-medium mb-2">Tabs:</h3>
         <ul className="list-disc pl-5 space-y-2">
