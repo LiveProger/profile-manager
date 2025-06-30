@@ -1,34 +1,24 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useCallback } from "react";
 
 export const ProfileContext = createContext();
 
 export const ProfileProvider = ({ children }) => {
   const [profiles, setProfiles] = useState([]);
 
-  const refreshProfiles = (callback) => {
-    if (typeof chrome !== "undefined" && chrome.runtime) {
+  const refreshProfiles = useCallback(() => {
+    return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ action: "getProfiles" }, (response) => {
         if (chrome.runtime.lastError) {
-          if (callback) callback();
+          reject(new Error(`Failed to refresh profiles: ${chrome.runtime.lastError.message}`));
+        } else if (response?.profiles) {
+          setProfiles(response.profiles);
+          resolve("Profiles updated");
         } else {
-          setProfiles(response.profiles || []);
-          if (callback) callback();
+          reject(new Error("Failed to refresh profiles: No profiles received"));
         }
       });
-    } else {
-      setProfiles([
-        {
-          profileId: "mock1",
-          profileName: "Mock Profile 1",
-          tabs: [
-            { id: 1, title: "Test Tab 1", url: "https://example.com" },
-            { id: 2, title: "Test Tab 2", url: "https://example.org" },
-          ],
-        },
-      ]);
-      if (callback) callback();
-    }
-  };
+    });
+  }, []);
 
   useEffect(() => {
     refreshProfiles();
