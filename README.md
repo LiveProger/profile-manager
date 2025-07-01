@@ -9,7 +9,7 @@ For detailed instructions on installation, setup, server building, and publishin
 Quick Start
 
 Clone the Repository:
-git clone https://github.com/LiveProger/profile-tabs-manager.git
+git clone https://github.com/LiveProger/profile-manager.git
 cd profile-tabs-manager
 
 
