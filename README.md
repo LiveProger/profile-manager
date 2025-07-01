@@ -1,12 +1,32 @@
-# React + Vite
+Profile and Tabs Manager
+Welcome to Profile and Tabs Manager, a Chrome extension for managing Chrome profiles, tabs, and saving pages offline as MHTML files. The extension communicates with a local Node.js server via native messaging and allows configuration of the server port through the extension's interface (default: 3000). It replaces Chrome's new tab page with a custom interface for profile and tab management.
+Choose Your Language
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+English
+Русский
 
-Currently, two official plugins are available:
+For detailed instructions on installation, setup, server building, and publishing to the Chrome Web Store, please select your preferred language above.
+Quick Start
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Clone the Repository:
+git clone https://github.com/LiveProger/profile-tabs-manager.git
+cd profile-tabs-manager
 
-## Expanding the ESLint configuration
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Install Server Dependencies:
+npm install
+
+
+Run the Server:
+npm start
+
+
+Load the Extension:
+
+Place extension files in the extension/ folder.
+Open Chrome, go to chrome://extensions/, enable "Developer mode," and load the extension/ folder via "Load unpacked."
+Open a new tab to access the extension's interface.
+
+
+
+For more details, refer to the language-specific README files linked above.

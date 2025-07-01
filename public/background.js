@@ -6,6 +6,14 @@ function generateUUID() {
   });
 }
 
+async function getServerPort() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["serverPort"], (result) => {
+      resolve(result.serverPort || "3000");
+    });
+  });
+}
+
 async function getCurrentProfileId() {
   try {
     const { profileId } = await new Promise((resolve) => {
@@ -15,8 +23,9 @@ async function getCurrentProfileId() {
 
     if (profileId) {
       console.log("Using stored profileId:", profileId);
+      const port = await getServerPort();
       const response = await fetch(
-        `http://localhost:3000/profiles?currentProfileId=${profileId}`
+        `http://localhost:${port}/profiles?currentProfileId=${profileId}`
       );
       console.log(
         "Response from /profiles:",
@@ -51,7 +60,8 @@ async function getCurrentProfileId() {
 
 async function selectProfile() {
   try {
-    const response = await fetch("http://localhost:3000/profiles");
+    const port = await getServerPort();
+    const response = await fetch(`http://localhost:${port}/profiles`);
     console.log(
       "Response from /profiles for selectProfile:",
       response.status,
@@ -98,9 +108,10 @@ async function selectProfile() {
 
 async function updateProfiles(manual = false) {
   let currentProfileId = await getCurrentProfileId();
+  const port = await getServerPort();
   if (!currentProfileId && manual) {
     console.log("No valid profileId, sending profiles for selection");
-    const profiles = await fetch("http://localhost:3000/profiles").then((res) =>
+    const profiles = await fetch(`http://localhost:${port}/profiles`).then((res) =>
       res.json()
     );
     console.log("Profiles for selection:", profiles);
@@ -140,7 +151,7 @@ async function updateProfiles(manual = false) {
   let currentProfileName = "Unknown Profile";
   try {
     const response = await fetch(
-      `http://localhost:3000/profile-name?profileId=${currentProfileId}`
+      `http://localhost:${port}/profile-name?profileId=${currentProfileId}`
     );
     console.log(
       "Response from /profile-name:",
@@ -162,7 +173,7 @@ async function updateProfiles(manual = false) {
   });
 
   try {
-    const postResponse = await fetch("http://localhost:3000/profiles", {
+    const postResponse = await fetch(`http://localhost:${port}/profiles`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -190,7 +201,7 @@ async function updateProfiles(manual = false) {
     }
 
     const response = await fetch(
-      `http://localhost:3000/profiles?currentProfileId=${currentProfileId}`
+      `http://localhost:${port}/profiles?currentProfileId=${currentProfileId}`
     );
     console.log(
       "GET /profiles response:",
@@ -215,7 +226,7 @@ async function updateProfiles(manual = false) {
   } catch (error) {
     console.error("Error updating profiles:", error.message);
     const response = await fetch(
-      `http://localhost:3000/profiles?currentProfileId=${currentProfileId}`
+      `http://localhost:${port}/profiles?currentProfileId=${currentProfileId}`
     );
     if (response.ok) {
       const profiles = await response.json();
@@ -343,7 +354,8 @@ async function savePage(tabId, url, title) {
       return { error: "No valid profile selected" };
     }
 
-    const response = await fetch("http://localhost:3000/save-page", {
+    const port = await getServerPort();
+    const response = await fetch(`http://localhost:${port}/save-page`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -377,10 +389,11 @@ async function savePage(tabId, url, title) {
 
 async function deleteProfile(profileId) {
   try {
+    const port = await getServerPort();
     const currentProfileId = await getCurrentProfileId();
     const isCurrentProfile = profileId.toLowerCase() === currentProfileId;
 
-    const response = await fetch("http://localhost:3000/profile", {
+    const response = await fetch(`http://localhost:${port}/profile`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ profileId: profileId.toLowerCase() }),
@@ -395,7 +408,7 @@ async function deleteProfile(profileId) {
     if (isCurrentProfile) {
       await new Promise((resolve) => chrome.storage.local.remove("profileId", resolve));
       console.log("Cleared current profileId from storage");
-      const profiles = await fetch("http://localhost:3000/profiles").then((res) => res.json());
+      const profiles = await fetch(`http://localhost:${port}/profiles`).then((res) => res.json());
       if (profiles.length > 0) {
         console.log("Triggering profile selection after deleting current profile");
         chrome.runtime.sendMessage({
@@ -429,25 +442,9 @@ async function openInProfile(url, profileId) {
       return { error: "No valid profile selected" };
     }
 
-    if (profileId.toLowerCase() === currentProfileId) {
-      chrome.windows.create({ url, type: "normal" }, (window) => {
-        if (chrome.runtime.lastError) {
-          console.error("Error creating window:", chrome.runtime.lastError);
-          chrome.notifications.create({
-            type: "basic",
-            iconUrl: "icon.png",
-            title: "Error",
-            message: `Failed to open URL: ${chrome.runtime.lastError.message}`,
-          });
-        } else {
-          console.log("Successfully opened URL in current profile:", url);
-        }
-      });
-      return { success: true };
-    }
-
+    const port = await getServerPort();
     const profilesResponse = await fetch(
-      `http://localhost:3000/profiles?currentProfileId=${currentProfileId}`
+      `http://localhost:${port}/profiles?currentProfileId=${currentProfileId}`
     );
     if (!profilesResponse.ok) {
       throw new Error(
@@ -527,32 +524,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true;
   } else if (request.action === "getSavedPages") {
-    fetch("http://localhost:3000/saved-pages")
-      .then((res) => res.json())
-      .then((savedPages) => {
-        console.log("Sending saved pages:", savedPages);
-        sendResponse({ savedPages });
-      })
-      .catch((error) => {
-        console.error("Error fetching saved pages:", error);
-        sendResponse({ error: error.message });
-      });
+    getServerPort().then((port) => {
+      fetch(`http://localhost:${port}/saved-pages`)
+        .then((res) => res.json())
+        .then((savedPages) => {
+          console.log("Sending saved pages:", savedPages);
+          sendResponse({ savedPages });
+        })
+        .catch((error) => {
+          console.error("Error fetching saved pages:", error);
+          sendResponse({ error: error.message });
+        });
+    });
     return true;
   } else if (request.action === "deleteSavedPage") {
-    fetch("http://localhost:3000/saved-page", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: request.url, id: request.id }),
-    })
-      .then(() => {
-        console.log("Deleted saved page:", request.id);
-        sendResponse({ success: true });
-        updateProfiles(true);
+    getServerPort().then((port) => {
+      fetch(`http://localhost:${port}/saved-page`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: request.url, id: request.id }),
       })
-      .catch((error) => {
-        console.error("Error deleting saved page:", error);
-        sendResponse({ error: error.message });
-      });
+        .then(() => {
+          console.log("Deleted saved page:", request.id);
+          sendResponse({ success: true });
+          updateProfiles(true);
+        })
+        .catch((error) => {
+          console.error("Error deleting saved page:", error);
+          sendResponse({ error: error.message });
+        });
+    });
     return true;
   } else if (request.action === "openWindow") {
     openInProfile(request.url, request.profileId)

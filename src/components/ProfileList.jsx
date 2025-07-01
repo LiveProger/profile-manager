@@ -15,23 +15,40 @@ const ProfileList = () => {
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [settingsAnimation, setSettingsAnimation] = useState("");
   const [isContentVisible, setIsContentVisible] = useState(false);
+  const [serverPort, setServerPort] = useState("3000");
   const settingsPanelRef = useRef(null);
   const menuButtonRef = useRef(null);
   const isToggling = useRef(false);
+
+  useEffect(() => {
+    chrome.storage.local.get(["serverPort"], (result) => {
+      setServerPort(result.serverPort || "3000");
+    });
+  }, []);
+
+  const handlePortChange = (e) => {
+    const port = e.target.value;
+    setServerPort(port);
+    chrome.storage.local.set({ serverPort: port }, () => {
+      console.log(`Server port saved: ${port}`);
+      toast.info(`Server port updated to ${port}. Refresh profiles to apply.`);
+    });
+  };
+
+  const sortedProfiles = useMemo(() => {
+    return [...profiles].sort((a, b) => {
+      if (a.isCurrent && !b.isCurrent) return -1;
+      if (!a.isCurrent && b.isCurrent) return 1;
+      return 0;
+    });
+  }, [profiles]);
 
   const getSavedPages = () => {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ action: "getSavedPages" }, (response) => {
         if (chrome.runtime.lastError) {
-          console.error(
-            "Error fetching saved pages:",
-            chrome.runtime.lastError.message
-          );
-          reject(
-            new Error(
-              `Failed to fetch saved pages: ${chrome.runtime.lastError.message}`
-            )
-          );
+          console.error("Error fetching saved pages:", chrome.runtime.lastError.message);
+          reject(new Error(`Failed to fetch saved pages: ${chrome.runtime.lastError.message}`));
         } else {
           console.log("Fetched saved pages:", response.savedPages);
           resolve(response.savedPages || []);
@@ -73,28 +90,18 @@ const ProfileList = () => {
       setSelectedProfileId(profileId);
       if (profileId) {
         await new Promise((resolve, reject) => {
-          chrome.storage.local.set(
-            { profileId: profileId.toLowerCase() },
-            () => {
-              chrome.runtime.sendMessage(
-                {
-                  action: "selectProfileResponse",
-                  selectedProfileId: profileId,
-                },
-                (response) => {
-                  if (chrome.runtime.lastError) {
-                    reject(
-                      new Error(
-                        `Failed to select profile: ${chrome.runtime.lastError.message}`
-                      )
-                    );
-                  } else {
-                    resolve();
-                  }
+          chrome.storage.local.set({ profileId: profileId.toLowerCase() }, () => {
+            chrome.runtime.sendMessage(
+              { action: "selectProfileResponse", selectedProfileId: profileId },
+              (response) => {
+                if (chrome.runtime.lastError) {
+                  reject(new Error(`Failed to select profile: ${chrome.runtime.lastError.message}`));
+                } else {
+                  resolve();
                 }
-              );
-            }
-          );
+              }
+            );
+          });
         });
         await toastPromise(
           refreshProfiles(),
@@ -105,20 +112,13 @@ const ProfileList = () => {
       } else {
         await new Promise((resolve, reject) => {
           chrome.storage.local.remove("profileId", () => {
-            chrome.runtime.sendMessage(
-              { action: "getProfiles" },
-              (response) => {
-                if (chrome.runtime.lastError) {
-                  reject(
-                    new Error(
-                      `Failed to remove profile: ${chrome.runtime.lastError.message}`
-                    )
-                  );
-                } else {
-                  resolve();
-                }
+            chrome.runtime.sendMessage({ action: "getProfiles" }, (response) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(`Failed to remove profile: ${chrome.runtime.lastError.message}`));
+              } else {
+                resolve();
               }
-            );
+            });
           });
         });
         await toastPromise(
@@ -274,10 +274,7 @@ const ProfileList = () => {
             onClick={() => {
               if (isToggling.current) return;
               isToggling.current = true;
-              console.log(
-                "Menu button clicked, toggling isSettingsOpen to:",
-                !isSettingsOpen
-              );
+              console.log("Menu button clicked, toggling isSettingsOpen to:", !isSettingsOpen);
               setIsSettingsOpen(!isSettingsOpen);
               setTimeout(() => {
                 isToggling.current = false;
@@ -345,6 +342,19 @@ const ProfileList = () => {
               />
             </svg>
           </button>
+          <h2 className="text-lg font-semibold mb-2">Settings</h2>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Server Port</label>
+            <input
+              type="number"
+              value={serverPort}
+              onChange={handlePortChange}
+              className="border p-2 rounded w-full"
+              placeholder="Enter server port (default: 3000)"
+              min="1024"
+              max="65535"
+            />
+          </div>
           <h2 className="text-lg font-semibold mb-2">Saved Pages</h2>
           <button
             className="bg-red-500 text-white px-4 py-2 rounded mb-4 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -378,15 +388,11 @@ const ProfileList = () => {
                               filePath: page.filePath,
                             },
                             (response) => {
-                              if (
-                                chrome.runtime.lastError ||
-                                !response.success
-                              ) {
+                              if (chrome.runtime.lastError || !response.success) {
                                 reject(
                                   new Error(
                                     `Failed to open page: ${
-                                      chrome.runtime.lastError?.message ||
-                                      response.error
+                                      chrome.runtime.lastError?.message || response.error
                                     }`
                                   )
                                 );
@@ -419,15 +425,11 @@ const ProfileList = () => {
                               id: page.id,
                             },
                             (response) => {
-                              if (
-                                chrome.runtime.lastError ||
-                                !response.success
-                              ) {
+                              if (chrome.runtime.lastError || !response.success) {
                                 reject(
                                   new Error(
                                     `Failed to delete page: ${
-                                      chrome.runtime.lastError?.message ||
-                                      response.error
+                                      chrome.runtime.lastError?.message || response.error
                                     }`
                                   )
                                 );
@@ -458,7 +460,7 @@ const ProfileList = () => {
         </div>
       )}
 
-      {profiles.map((profile) => (
+      {sortedProfiles.map((profile) => (
         <ProfileCard
           key={profile.profileId}
           profile={profile}
