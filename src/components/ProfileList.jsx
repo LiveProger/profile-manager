@@ -47,8 +47,15 @@ const ProfileList = () => {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ action: "getSavedPages" }, (response) => {
         if (chrome.runtime.lastError) {
-          console.error("Error fetching saved pages:", chrome.runtime.lastError.message);
-          reject(new Error(`Failed to fetch saved pages: ${chrome.runtime.lastError.message}`));
+          console.error(
+            "Error fetching saved pages:",
+            chrome.runtime.lastError.message
+          );
+          reject(
+            new Error(
+              `Failed to fetch saved pages: ${chrome.runtime.lastError.message}`
+            )
+          );
         } else {
           console.log("Fetched saved pages:", response.savedPages);
           resolve(response.savedPages || []);
@@ -90,18 +97,28 @@ const ProfileList = () => {
       setSelectedProfileId(profileId);
       if (profileId) {
         await new Promise((resolve, reject) => {
-          chrome.storage.local.set({ profileId: profileId.toLowerCase() }, () => {
-            chrome.runtime.sendMessage(
-              { action: "selectProfileResponse", selectedProfileId: profileId },
-              (response) => {
-                if (chrome.runtime.lastError) {
-                  reject(new Error(`Failed to select profile: ${chrome.runtime.lastError.message}`));
-                } else {
-                  resolve();
+          chrome.storage.local.set(
+            { profileId: profileId.toLowerCase() },
+            () => {
+              chrome.runtime.sendMessage(
+                {
+                  action: "selectProfileResponse",
+                  selectedProfileId: profileId,
+                },
+                (response) => {
+                  if (chrome.runtime.lastError) {
+                    reject(
+                      new Error(
+                        `Failed to select profile: ${chrome.runtime.lastError.message}`
+                      )
+                    );
+                  } else {
+                    resolve();
+                  }
                 }
-              }
-            );
-          });
+              );
+            }
+          );
         });
         await toastPromise(
           refreshProfiles(),
@@ -112,13 +129,20 @@ const ProfileList = () => {
       } else {
         await new Promise((resolve, reject) => {
           chrome.storage.local.remove("profileId", () => {
-            chrome.runtime.sendMessage({ action: "getProfiles" }, (response) => {
-              if (chrome.runtime.lastError) {
-                reject(new Error(`Failed to remove profile: ${chrome.runtime.lastError.message}`));
-              } else {
-                resolve();
+            chrome.runtime.sendMessage(
+              { action: "getProfiles" },
+              (response) => {
+                if (chrome.runtime.lastError) {
+                  reject(
+                    new Error(
+                      `Failed to remove profile: ${chrome.runtime.lastError.message}`
+                    )
+                  );
+                } else {
+                  resolve();
+                }
               }
-            });
+            );
           });
         });
         await toastPromise(
@@ -243,6 +267,24 @@ const ProfileList = () => {
     return () => document.removeEventListener("click", handleClickOutside);
   }, [isSettingsOpen]);
 
+  const [showTip, setShowTip] = useState(false);
+
+  useEffect(() => {
+    chrome.storage.local.get(["showProfileTip"], (result) => {
+      setServerPort(result.showProfileTip || true);
+    });
+  }, []);
+
+  const hideTip = () => {
+    setShowTip(false);
+    chrome.storage.local.set({ showProfileTip: false });
+  };
+
+  const openTip = () => {
+    setShowTip(true);
+    chrome.storage.local.set({ showProfileTip: true });
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6 relative">
       <ToastContainer
@@ -259,7 +301,29 @@ const ProfileList = () => {
       />
 
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Profile and Tabs</h1>
+        <h1 className="text-2xl font-bold">
+          Profile and Tabs{" "}
+          <button
+            onClick={openTip}
+            className="text-blue-600 hover:text-blue-800"
+            title="Показать подсказку по открытию ссылок"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </button>
+        </h1>
         <div className="flex gap-2">
           <button
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
@@ -274,7 +338,10 @@ const ProfileList = () => {
             onClick={() => {
               if (isToggling.current) return;
               isToggling.current = true;
-              console.log("Menu button clicked, toggling isSettingsOpen to:", !isSettingsOpen);
+              console.log(
+                "Menu button clicked, toggling isSettingsOpen to:",
+                !isSettingsOpen
+              );
               setIsSettingsOpen(!isSettingsOpen);
               setTimeout(() => {
                 isToggling.current = false;
@@ -315,6 +382,22 @@ const ProfileList = () => {
         </select>
       </div>
 
+      {showTip && (
+        <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-4 rounded shadow-md flex justify-between items-center">
+          <p>
+            To open a link in the desired profile, <strong>right click</strong>{" "}
+            follow the link, select <strong>"Open link as"</strong>, then select
+            the appropriate profile.
+          </p>
+          <button
+            onClick={hideTip}
+            className="text-blue-700 hover:text-blue-900 font-semibold"
+          >
+            Close
+          </button>
+        </div>
+      )}
+
       {isSettingsOpen && (
         <div
           className={`settings-panel ${settingsAnimation}`}
@@ -344,7 +427,9 @@ const ProfileList = () => {
           </button>
           <h2 className="text-lg font-semibold mb-2">Settings</h2>
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Server Port</label>
+            <label className="block text-sm font-medium mb-1">
+              Server Port
+            </label>
             <input
               type="number"
               value={serverPort}
@@ -388,11 +473,15 @@ const ProfileList = () => {
                               filePath: page.filePath,
                             },
                             (response) => {
-                              if (chrome.runtime.lastError || !response.success) {
+                              if (
+                                chrome.runtime.lastError ||
+                                !response.success
+                              ) {
                                 reject(
                                   new Error(
                                     `Failed to open page: ${
-                                      chrome.runtime.lastError?.message || response.error
+                                      chrome.runtime.lastError?.message ||
+                                      response.error
                                     }`
                                   )
                                 );
@@ -425,11 +514,15 @@ const ProfileList = () => {
                               id: page.id,
                             },
                             (response) => {
-                              if (chrome.runtime.lastError || !response.success) {
+                              if (
+                                chrome.runtime.lastError ||
+                                !response.success
+                              ) {
                                 reject(
                                   new Error(
                                     `Failed to delete page: ${
-                                      chrome.runtime.lastError?.message || response.error
+                                      chrome.runtime.lastError?.message ||
+                                      response.error
                                     }`
                                   )
                                 );
