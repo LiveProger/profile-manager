@@ -2,8 +2,7 @@
   "manifest_version": 3,
   "name": "Profile and Tabs Manager",
   "version": "1.0",
-  "description": "Manage Chrome profiles, tabs, and save pages offline with a configurable server port.",
-  "permissions": [
+"description": "A Chrome extension to manage profiles, tabs, and save pages offline as MHTML files. Requires a local Node.js server for profile management and native messaging. Download the server and setup instructions from https://github.com/LiveProger/profile-tabs-manager. Configure the server port (default: 3000) via the extension's interface.",  "permissions": [
     "tabs",
     "windows",
     "pageCapture",
