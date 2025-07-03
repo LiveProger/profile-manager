@@ -7,7 +7,6 @@
     "windows",
     "pageCapture",
     "storage",
-    "nativeMessaging",
     "notifications"
   ],
   "host_permissions": [
