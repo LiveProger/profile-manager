@@ -14,26 +14,9 @@ const ProfileList = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [settingsAnimation, setSettingsAnimation] = useState("");
-  const [isContentVisible, setIsContentVisible] = useState(false);
-  const [serverPort, setServerPort] = useState("3000");
   const settingsPanelRef = useRef(null);
   const menuButtonRef = useRef(null);
   const isToggling = useRef(false);
-
-  useEffect(() => {
-    chrome.storage.local.get(["serverPort"], (result) => {
-      setServerPort(result.serverPort || "3000");
-    });
-  }, []);
-
-  const handlePortChange = (e) => {
-    const port = e.target.value;
-    setServerPort(port);
-    chrome.storage.local.set({ serverPort: port }, () => {
-      console.log(`Server port saved: ${port}`);
-      toast.info(`Server port updated to ${port}. Refresh profiles to apply.`);
-    });
-  };
 
   const sortedProfiles = useMemo(() => {
     return [...profiles].sort((a, b) => {
@@ -211,10 +194,31 @@ const ProfileList = () => {
   };
 
   useEffect(() => {
+    // Восстановление выбранного профиля
     chrome.storage.local.get(["profileId"], (result) => {
       setSelectedProfileId(result.profileId?.toLowerCase() || "");
     });
 
+    // Явное получение списка профилей с runtime
+    chrome.runtime.sendMessage({ action: "getProfiles" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error(
+          "Failed to get profiles:",
+          chrome.runtime.lastError.message
+        );
+      } else if (response?.profiles) {
+        setAvailableProfiles(
+          response.profiles.map((p) => ({
+            profileId: p.profileId,
+            profileName: p.profileName,
+          }))
+        );
+      }
+    });
+
+    fetchSavedPages();
+
+    // Слушатель сообщений (оставляем для других ситуаций)
     const messageListener = (request, sender, sendResponse) => {
       if (request.action === "selectProfile") {
         setAvailableProfiles(
@@ -237,14 +241,12 @@ const ProfileList = () => {
       console.log("Opening settings panel, isSettingsOpen:", true);
       setSettingsAnimation("settings-panel-enter");
       const timeout = setTimeout(() => {
-        setIsContentVisible(true);
         fetchSavedPages();
       }, 300);
       return () => clearTimeout(timeout);
     } else if (settingsAnimation) {
       console.log("Closing settings panel, isSettingsOpen:", false);
       setSettingsAnimation("settings-panel-exit");
-      setIsContentVisible(false);
       const timeout = setTimeout(() => setSettingsAnimation(""), 300);
       return () => clearTimeout(timeout);
     }
@@ -271,7 +273,8 @@ const ProfileList = () => {
 
   useEffect(() => {
     chrome.storage.local.get(["showProfileTip"], (result) => {
-      setServerPort(result.showProfileTip || true);
+      const value = result.showProfileTip;
+      setShowTip(value !== false); 
     });
   }, []);
 
@@ -284,6 +287,36 @@ const ProfileList = () => {
     setShowTip(true);
     chrome.storage.local.set({ showProfileTip: true });
   };
+
+  const profileMap = useMemo(() => {
+    const map = new Map();
+    [...profiles, ...availableProfiles].forEach((p) => {
+      if (p.profileId && p.profileName) {
+        map.set(p.profileId.toLowerCase(), p.profileName);
+      }
+    });
+    return map;
+  }, [profiles, availableProfiles]);
+
+  useEffect(() => {
+    console.log("All saved pages:", displayedSavedPages);
+    console.log(
+      "Available profile IDs:",
+      profiles.map((p) => p.profileId)
+    );
+  }, [displayedSavedPages, profiles]);
+
+  const groupedSavedPages = useMemo(() => {
+    const groups = {};
+    displayedSavedPages.forEach((page) => {
+      const profileId = page.profileId?.toLowerCase() || "unknown";
+      if (!groups[profileId]) {
+        groups[profileId] = [];
+      }
+      groups[profileId].push(page);
+    });
+    return groups;
+  }, [displayedSavedPages]);
 
   return (
     <div className="max-w-4xl mx-auto p-6 relative">
@@ -426,20 +459,6 @@ const ProfileList = () => {
             </svg>
           </button>
           <h2 className="text-lg font-semibold mb-2">Settings</h2>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">
-              Server Port
-            </label>
-            <input
-              type="number"
-              value={serverPort}
-              onChange={handlePortChange}
-              className="border p-2 rounded w-full"
-              placeholder="Enter server port (default: 3000)"
-              min="1024"
-              max="65535"
-            />
-          </div>
           <h2 className="text-lg font-semibold mb-2">Saved Pages</h2>
           <button
             className="bg-red-500 text-white px-4 py-2 rounded mb-4 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -450,102 +469,120 @@ const ProfileList = () => {
           </button>
           <div className="card">
             {displayedSavedPages.length === 0 && <p>No saved pages found.</p>}
-            {displayedSavedPages.map((page) => (
-              <div
-                key={page.id}
-                className="flex justify-between items-center p-2 border |b"
-              >
-                <div className="row">
-                  <p className="font-medium">{page.title || "Untitled"}</p>
-                  <p className="text-sm text-gray-500">{page.url}</p>
-                  <p className="text-sm text-gray-500">{page.timestamp}</p>
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    className="text-blue-500 hover:underline"
-                    onClick={() => {
-                      const openSavedPage = () =>
-                        new Promise((resolve, reject) => {
-                          chrome.runtime.sendMessage(
-                            {
-                              action: "openSavedPage",
-                              id: page.id,
-                              filePath: page.filePath,
-                            },
-                            (response) => {
-                              if (
-                                chrome.runtime.lastError ||
-                                !response.success
-                              ) {
-                                reject(
-                                  new Error(
-                                    `Failed to open page: ${
-                                      chrome.runtime.lastError?.message ||
-                                      response.error
-                                    }`
-                                  )
+            {Object.entries(groupedSavedPages).map(([profileId, pages]) => (
+              <div key={profileId} className="mb-6">
+                <h3 className="text-md font-semibold text-gray-800 mb-2">
+                  Profile:{" "}
+                  <span className="text-blue-600">
+                    {profileMap.get(profileId) || profileId}
+                  </span>
+                </h3>
+                <div className="card space-y-2">
+                  {pages.map((page) => (
+                    <div
+                      key={page.id}
+                      className="flex justify-between items-center p-2 border rounded"
+                    >
+                      <div className="row">
+                        <p className="font-medium">
+                          {page.title || "Untitled"}
+                        </p>
+                        <p className="text-sm text-gray-500">{page.url}</p>
+                        <p className="text-sm text-gray-500">
+                          {page.timestamp}
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          className="text-blue-500 hover:underline"
+                          onClick={() => {
+                            const openSavedPage = () =>
+                              new Promise((resolve, reject) => {
+                                chrome.runtime.sendMessage(
+                                  {
+                                    action: "openSavedPage",
+                                    id: page.id,
+                                    filePath: page.filePath,
+                                  },
+                                  (response) => {
+                                    if (
+                                      chrome.runtime.lastError ||
+                                      !response.success
+                                    ) {
+                                      reject(
+                                        new Error(
+                                          `Failed to open page: ${
+                                            chrome.runtime.lastError?.message ||
+                                            response.error
+                                          }`
+                                        )
+                                      );
+                                    } else {
+                                      resolve();
+                                    }
+                                  }
                                 );
-                              } else {
-                                resolve();
-                              }
-                            }
-                          );
-                        });
-                      setIsLoading(true);
-                      toastPromise(
-                        openSavedPage(),
-                        `Opening page: ${page.title || "Untitled"}...`,
-                        `Opened page: ${page.title || "Untitled"}`,
-                        `Failed to open page: ${page.title || "Untitled"}`
-                      ).finally(() => setIsLoading(false));
-                    }}
-                  >
-                    Open
-                  </button>
-                  <button
-                    className="text-red-500 hover:underline"
-                    onClick={() => {
-                      const deleteSavedPage = () =>
-                        new Promise((resolve, reject) => {
-                          chrome.runtime.sendMessage(
-                            {
-                              action: "deleteSavedPage",
-                              url: page.url,
-                              id: page.id,
-                            },
-                            (response) => {
-                              if (
-                                chrome.runtime.lastError ||
-                                !response.success
-                              ) {
-                                reject(
-                                  new Error(
-                                    `Failed to delete page: ${
-                                      chrome.runtime.lastError?.message ||
-                                      response.error
-                                    }`
-                                  )
+                              });
+                            setIsLoading(true);
+                            toastPromise(
+                              openSavedPage(),
+                              `Opening page: ${page.title || "Untitled"}...`,
+                              `Opened page: ${page.title || "Untitled"}`,
+                              `Failed to open page: ${page.title || "Untitled"}`
+                            ).finally(() => setIsLoading(false));
+                          }}
+                        >
+                          Open
+                        </button>
+                        <button
+                          className="text-red-500 hover:underline"
+                          onClick={() => {
+                            const deleteSavedPage = () =>
+                              new Promise((resolve, reject) => {
+                                chrome.runtime.sendMessage(
+                                  {
+                                    action: "deleteSavedPage",
+                                    url: page.url,
+                                    id: page.id,
+                                  },
+                                  (response) => {
+                                    if (
+                                      chrome.runtime.lastError ||
+                                      !response.success
+                                    ) {
+                                      reject(
+                                        new Error(
+                                          `Failed to delete page: ${
+                                            chrome.runtime.lastError?.message ||
+                                            response.error
+                                          }`
+                                        )
+                                      );
+                                    } else {
+                                      resolve();
+                                    }
+                                  }
                                 );
-                              } else {
-                                resolve();
-                              }
-                            }
-                          );
-                        });
-                      setIsLoading(true);
-                      toastPromise(
-                        deleteSavedPage().then(() => {
-                          fetchSavedPages();
-                          return refreshProfiles();
-                        }),
-                        `Deleting page: ${page.title || "Untitled"}...`,
-                        `Deleted page: ${page.title || "Untitled"}`,
-                        `Failed to delete page: ${page.title || "Untitled"}`
-                      ).finally(() => setIsLoading(false));
-                    }}
-                  >
-                    Delete
-                  </button>
+                              });
+                            setIsLoading(true);
+                            toastPromise(
+                              deleteSavedPage().then(() => {
+                                fetchSavedPages();
+                                return refreshProfiles();
+                              }),
+                              `Deleting page: ${page.title || "Untitled"}...`,
+                              `Deleted page: ${page.title || "Untitled"}`,
+                              `Failed to delete page: ${
+                                page.title || "Untitled"
+                              }`
+                            ).finally(() => setIsLoading(false));
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
