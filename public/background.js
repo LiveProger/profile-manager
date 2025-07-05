@@ -111,9 +111,9 @@ async function updateProfiles(manual = false) {
   const port = await getServerPort();
   if (!currentProfileId && manual) {
     console.log("No valid profileId, sending profiles for selection");
-    const profiles = await fetch(`http://localhost:${port}/profiles`).then((res) =>
-      res.json()
-    );
+    const profiles = await fetch(
+      `http://localhost:${port}/profiles`
+    ).then((res) => res.json());
     console.log("Profiles for selection:", profiles);
     chrome.runtime.sendMessage({
       action: "selectProfile",
@@ -399,18 +399,30 @@ async function deleteProfile(profileId) {
       body: JSON.stringify({ profileId: profileId.toLowerCase() }),
     });
 
-    console.log("Delete profile response:", response.status, response.statusText);
+    console.log(
+      "Delete profile response:",
+      response.status,
+      response.statusText
+    );
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to delete profile: ${response.statusText} (${errorText})`);
+      throw new Error(
+        `Failed to delete profile: ${response.statusText} (${errorText})`
+      );
     }
 
     if (isCurrentProfile) {
-      await new Promise((resolve) => chrome.storage.local.remove("profileId", resolve));
+      await new Promise((resolve) =>
+        chrome.storage.local.remove("profileId", resolve)
+      );
       console.log("Cleared current profileId from storage");
-      const profiles = await fetch(`http://localhost:${port}/profiles`).then((res) => res.json());
+      const profiles = await fetch(
+        `http://localhost:${port}/profiles`
+      ).then((res) => res.json());
       if (profiles.length > 0) {
-        console.log("Triggering profile selection after deleting current profile");
+        console.log(
+          "Triggering profile selection after deleting current profile"
+        );
         chrome.runtime.sendMessage({
           action: "selectProfile",
           profiles: profiles.map((p) => ({
@@ -635,6 +647,41 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ error: error.message });
       });
     return true;
+  } else if (request.action === "getSavePath") {
+    getServerPort().then((port) => {
+      fetch(`http://localhost:${port}/save-path`)
+        .then((r) => {
+          return r.json();
+        })
+        .then((res) => {
+          sendResponse({ path: res.path });
+        })
+        .catch((e) => {
+          sendResponse({ error: e.message });
+        });
+    });
+    return true; // 👈 важно!
+  } else if (request.action === "setSavePath") {
+    getServerPort().then((port) => {
+      fetch(`http://localhost:${port}/save-path`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: request.path }),
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.success) {
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ error: res.error || "Failed to save path" });
+          }
+        })
+        .catch((e) => {
+          console.error("Failed to set save path:", e.message);
+          sendResponse({ error: e.message });
+        });
+    });
+    return true;
   }
   sendResponse({ error: "Unknown action" });
   return false;
@@ -663,4 +710,38 @@ chrome.windows.onCreated.addListener(() => {
 
 chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
+});
+
+let savePath = null; // будет загружено с сервера
+
+chrome.runtime.onMessage.addListener((req, _, sendResponse) => {
+  if (req.action === "getSavePath") {
+    getServerPort().then((port) => {
+      fetch(`http://localhost:${port}/save-path`)
+        .then((r) => {
+          return r.json();
+        })
+        .then((res) => {
+          sendResponse({ path: res.path });
+        })
+        .catch((e) => {
+          console.error("Error getting save path:", e.message);
+          sendResponse({ error: e.message });
+        });
+    });
+    return true;
+  }
+  if (req.action === "setSavePath") {
+    getServerPort().then((port) => {
+      fetch(`http://localhost:${port}/save-path`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: req.path }),
+      })
+        .then((r) => r.json())
+        .then((res) => sendResponse({ success: res.success }))
+        .catch((e) => sendResponse({ error: e.message }));
+    });
+    return true;
+  }
 });

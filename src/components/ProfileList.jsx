@@ -270,13 +270,38 @@ const ProfileList = () => {
   }, [isSettingsOpen]);
 
   const [showTip, setShowTip] = useState(false);
+  const [savePath, setSavePath] = useState();
 
   useEffect(() => {
     chrome.storage.local.get(["showProfileTip"], (result) => {
       const value = result.showProfileTip;
-      setShowTip(value !== false); 
+      setShowTip(value !== false);
+    });
+    chrome.runtime.sendMessage({ action: "getSavePath" }, (response) => {
+      console.log("Save path loaded from background:", response);
+
+      if (response?.path) {
+        setSavePath(response.path);
+      } else {
+        console.error("Failed to load save path:", response?.error);
+      }
     });
   }, []);
+
+  const handleSavePathChange = () => {
+    setIsLoading(true);
+    chrome.runtime.sendMessage(
+      { action: "setSavePath", path: savePath },
+      (res) => {
+        setIsLoading(false);
+        if (res?.success) {
+          toast.success("Save path updated!");
+        } else {
+          toast.error("Failed to update save path");
+        }
+      }
+    );
+  };
 
   const hideTip = () => {
     setShowTip(false);
@@ -418,10 +443,26 @@ const ProfileList = () => {
       {showTip && (
         <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-4 rounded shadow-md flex justify-between items-center">
           <p>
-            To open a link in the desired profile, <strong>right click</strong>{" "}
-            follow the link, select <strong>"Open link as"</strong>, then select
-            the appropriate profile.
+            This widget allows you to:
+            <ul className="list-disc pl-5 mt-1">
+              <li>Select and manage Chrome profiles</li>
+              <li>View and open saved pages</li>
+              <li>Delete saved pages or entire profiles</li>
+              <li>Set the folder where pages are saved</li>
+            </ul>
+            <br />
+            To install the backend server, download and run it from:
+            <a
+              href="https://github.com/LiveProger/profile-tabs-manager/releases"
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-600 underline"
+            >
+              GitHub Releases
+            </a>
+            .
           </p>
+
           <button
             onClick={hideTip}
             className="text-blue-700 hover:text-blue-900 font-semibold"
@@ -459,6 +500,27 @@ const ProfileList = () => {
             </svg>
           </button>
           <h2 className="text-lg font-semibold mb-2">Settings</h2>
+          <h2 className="text-lg font-semibold mb-2">Save Directory</h2>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">
+              Current save folder
+            </label>
+            <input
+              type="text"
+              value={savePath}
+              onChange={(e) => setSavePath(e.target.value)}
+              className="border p-2 rounded w-full"
+              placeholder="Enter folder path"
+            />
+            <button
+              className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              onClick={handleSavePathChange}
+              disabled={isLoading}
+            >
+              Update Save Path
+            </button>
+          </div>
+
           <h2 className="text-lg font-semibold mb-2">Saved Pages</h2>
           <button
             className="bg-red-500 text-white px-4 py-2 rounded mb-4 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
