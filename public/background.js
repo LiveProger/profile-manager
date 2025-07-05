@@ -660,3 +660,7 @@ chrome.windows.onCreated.addListener(() => {
   console.log("Window created, loading profiles");
   updateProfiles(true);
 });
+
+chrome.action.onClicked.addListener(() => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
+});
