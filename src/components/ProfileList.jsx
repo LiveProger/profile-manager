@@ -166,16 +166,50 @@ const ProfileList = () => {
         displayedSavedPages.map(
           (page) =>
             new Promise((resolve, reject) => {
-              chrome.runtime.sendMessage(
-                { action: "deleteSavedPage", url: page.url, id: page.id },
-                (response) => {
-                  if (chrome.runtime.lastError || !response.success) {
-                    reject(new Error(`Failed to delete page ${page.id}`));
-                  } else {
-                    resolve();
+              if (page.isOrphan) {
+                chrome.runtime.sendMessage(
+                  {
+                    action: "deleteSavedPage",
+                    url: page.url,
+                    id: undefined,
+                    filePath: page.filePath,
+                  },
+                  (response) => {
+                    if (chrome.runtime.lastError || !response.success) {
+                      reject(
+                        new Error(
+                          `Failed to delete page: ${
+                            chrome.runtime.lastError?.message || response.error
+                          }`
+                        )
+                      );
+                    } else {
+                      resolve();
+                    }
                   }
-                }
-              );
+                );
+              } else {
+                chrome.runtime.sendMessage(
+                  {
+                    action: "deleteSavedPage",
+                    url: page.url,
+                    id: page.id,
+                  },
+                  (response) => {
+                    if (chrome.runtime.lastError || !response.success) {
+                      reject(
+                        new Error(
+                          `Failed to delete page: ${
+                            chrome.runtime.lastError?.message || response.error
+                          }`
+                        )
+                      );
+                    } else {
+                      resolve();
+                    }
+                  }
+                );
+              }
             })
         )
       );
@@ -334,7 +368,7 @@ const ProfileList = () => {
   const groupedSavedPages = useMemo(() => {
     const groups = {};
     displayedSavedPages.forEach((page) => {
-      const profileId = page.profileId?.toLowerCase() || "unknown";
+      const profileId = page.profileId?.toLowerCase() || "__no_profile__";
       if (!groups[profileId]) {
         groups[profileId] = [];
       }
@@ -549,9 +583,13 @@ const ProfileList = () => {
                         <p className="font-medium">
                           {page.title || "Untitled"}
                         </p>
-                        <p className="text-sm text-gray-500">{page.url}</p>
                         <p className="text-sm text-gray-500">
-                          {page.timestamp}
+                          {page.url || "No URL"}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {page.timestamp
+                            ? new Date(page.timestamp).toLocaleString()
+                            : "Unknown date"}
                         </p>
                       </div>
                       <div className="flex space-x-2">
@@ -601,30 +639,58 @@ const ProfileList = () => {
                           onClick={() => {
                             const deleteSavedPage = () =>
                               new Promise((resolve, reject) => {
-                                chrome.runtime.sendMessage(
-                                  {
-                                    action: "deleteSavedPage",
-                                    url: page.url,
-                                    id: page.id,
-                                  },
-                                  (response) => {
-                                    if (
-                                      chrome.runtime.lastError ||
-                                      !response.success
-                                    ) {
-                                      reject(
-                                        new Error(
-                                          `Failed to delete page: ${
-                                            chrome.runtime.lastError?.message ||
-                                            response.error
-                                          }`
-                                        )
-                                      );
-                                    } else {
-                                      resolve();
+                                if (page.isOrphan) {
+                                  chrome.runtime.sendMessage(
+                                    {
+                                      action: "deleteSavedPage",
+                                      url: page.url,
+                                      id: undefined,
+                                      filePath: page.filePath,
+                                    },
+                                    (response) => {
+                                      if (
+                                        chrome.runtime.lastError ||
+                                        !response.success
+                                      ) {
+                                        reject(
+                                          new Error(
+                                            `Failed to delete page: ${
+                                              chrome.runtime.lastError
+                                                ?.message || response.error
+                                            }`
+                                          )
+                                        );
+                                      } else {
+                                        resolve();
+                                      }
                                     }
-                                  }
-                                );
+                                  );
+                                } else {
+                                  chrome.runtime.sendMessage(
+                                    {
+                                      action: "deleteSavedPage",
+                                      url: page.url,
+                                      id: page.id,
+                                    },
+                                    (response) => {
+                                      if (
+                                        chrome.runtime.lastError ||
+                                        !response.success
+                                      ) {
+                                        reject(
+                                          new Error(
+                                            `Failed to delete page: ${
+                                              chrome.runtime.lastError
+                                                ?.message || response.error
+                                            }`
+                                          )
+                                        );
+                                      } else {
+                                        resolve();
+                                      }
+                                    }
+                                  );
+                                }
                               });
                             setIsLoading(true);
                             toastPromise(

@@ -551,13 +551,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   } else if (request.action === "deleteSavedPage") {
     getServerPort().then((port) => {
+      console.log(request);
+      const body = request.id
+        ? { url: request.url, id: request.id }
+        : { filePath: request.filePath };
+
       fetch(`http://localhost:${port}/saved-page`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: request.url, id: request.id }),
+        body: JSON.stringify(body),
       })
         .then(() => {
-          console.log("Deleted saved page:", request.id);
+          console.log("Deleted saved page:", request.id || request.filePath);
           sendResponse({ success: true });
           updateProfiles(true);
         })
