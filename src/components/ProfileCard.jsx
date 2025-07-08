@@ -2,7 +2,12 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import { ProfileContext } from "../context/ProfileContext.jsx";
 import toastPromise from "./toastPromise.jsx";
 
-const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
+const ProfileCard = ({
+  profile,
+  fetchSavedPages,
+  setIsLoading,
+  onToggleHide,
+}) => {
   const { refreshProfiles } = useContext(ProfileContext);
   const [openMenus, setOpenMenus] = useState({});
   const [isOperationPending, setIsOperationPending] = useState({});
@@ -21,15 +26,26 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     if (isOperationPending[operationKey]) return;
     setIsOperationPending((prev) => ({ ...prev, [operationKey]: true }));
     const promise = new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: "openWindow", url, profileId }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(`Failed to open URL: ${chrome.runtime.lastError.message}`));
-        } else if (response?.success) {
-          resolve();
-        } else {
-          reject(new Error(`Failed to open URL: ${response?.error || "Unknown error"}`));
+      chrome.runtime.sendMessage(
+        { action: "openWindow", url, profileId },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(
+              new Error(
+                `Failed to open URL: ${chrome.runtime.lastError.message}`
+              )
+            );
+          } else if (response?.success) {
+            resolve();
+          } else {
+            reject(
+              new Error(
+                `Failed to open URL: ${response?.error || "Unknown error"}`
+              )
+            );
+          }
         }
-      });
+      );
     });
     setIsLoading(true);
     toastPromise(
@@ -48,13 +64,20 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     if (isOperationPending[operationKey]) return;
     setIsOperationPending((prev) => ({ ...prev, [operationKey]: true }));
     const promise = new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: "savePage", tabId, url, title }, (response) => {
-        if (response?.success) {
-          resolve();
-        } else {
-          reject(new Error(`Failed to save page: ${response?.error || "Unknown error"}`));
+      chrome.runtime.sendMessage(
+        { action: "savePage", tabId, url, title },
+        (response) => {
+          if (response?.success) {
+            resolve();
+          } else {
+            reject(
+              new Error(
+                `Failed to save page: ${response?.error || "Unknown error"}`
+              )
+            );
+          }
         }
-      });
+      );
     });
     setIsLoading(true);
     toastPromise(
@@ -66,7 +89,9 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
       setIsOperationPending((prev) => ({ ...prev, [operationKey]: false }));
       setIsLoading(false);
       fetchSavedPages({ silent: true });
-      refreshProfiles().catch((error) => console.error("Silent refreshProfiles failed:", error));
+      refreshProfiles().catch((error) =>
+        console.error("Silent refreshProfiles failed:", error)
+      );
     });
   };
 
@@ -75,15 +100,28 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     if (isOperationPending[operationKey]) return;
     setIsOperationPending((prev) => ({ ...prev, [operationKey]: true }));
     const promise = new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: "openSavedPage", id, filePath }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(`Failed to open saved page: ${chrome.runtime.lastError.message}`));
-        } else if (response?.success) {
-          resolve();
-        } else {
-          reject(new Error(`Failed to open saved page: ${response?.error || "Unknown error"}`));
+      chrome.runtime.sendMessage(
+        { action: "openSavedPage", id, filePath },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(
+              new Error(
+                `Failed to open saved page: ${chrome.runtime.lastError.message}`
+              )
+            );
+          } else if (response?.success) {
+            resolve();
+          } else {
+            reject(
+              new Error(
+                `Failed to open saved page: ${
+                  response?.error || "Unknown error"
+                }`
+              )
+            );
+          }
         }
-      });
+      );
     });
     setIsLoading(true);
     toastPromise(
@@ -102,15 +140,28 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     if (isOperationPending[operationKey]) return;
     setIsOperationPending((prev) => ({ ...prev, [operationKey]: true }));
     const promise = new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: "deleteSavedPage", url, id }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(`Failed to delete saved page: ${chrome.runtime.lastError.message}`));
-        } else if (response?.success) {
-          resolve();
-        } else {
-          reject(new Error(`Failed to delete saved page: ${response?.error || "Unknown error"}`));
+      chrome.runtime.sendMessage(
+        { action: "deleteSavedPage", url, id },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(
+              new Error(
+                `Failed to delete saved page: ${chrome.runtime.lastError.message}`
+              )
+            );
+          } else if (response?.success) {
+            resolve();
+          } else {
+            reject(
+              new Error(
+                `Failed to delete saved page: ${
+                  response?.error || "Unknown error"
+                }`
+              )
+            );
+          }
         }
-      });
+      );
     });
     setIsLoading(true);
     toastPromise(
@@ -122,7 +173,9 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
       setIsOperationPending((prev) => ({ ...prev, [operationKey]: false }));
       setIsLoading(false);
       fetchSavedPages({ silent: true });
-      refreshProfiles().catch((error) => console.error("Silent refreshProfiles failed:", error));
+      refreshProfiles().catch((error) =>
+        console.error("Silent refreshProfiles failed:", error)
+      );
     });
   };
 
@@ -131,15 +184,28 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     if (isOperationPending[operationKey]) return;
     setIsOperationPending((prev) => ({ ...prev, [operationKey]: true }));
     const promise = new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: "deleteProfile", profileId: profile.profileId }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(`Failed to delete profile: ${chrome.runtime.lastError.message}`));
-        } else if (response?.success) {
-          resolve();
-        } else {
-          reject(new Error(`Failed to delete profile: ${response?.error || "Unknown error"}`));
+      chrome.runtime.sendMessage(
+        { action: "deleteProfile", profileId: profile.profileId },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(
+              new Error(
+                `Failed to delete profile: ${chrome.runtime.lastError.message}`
+              )
+            );
+          } else if (response?.success) {
+            resolve();
+          } else {
+            reject(
+              new Error(
+                `Failed to delete profile: ${
+                  response?.error || "Unknown error"
+                }`
+              )
+            );
+          }
         }
-      });
+      );
     });
     setIsLoading(true);
     toastPromise(
@@ -151,7 +217,9 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
       setIsOperationPending((prev) => ({ ...prev, [operationKey]: false }));
       setIsLoading(false);
       fetchSavedPages({ silent: true });
-      refreshProfiles().catch((error) => console.error("Silent refreshProfiles failed:", error));
+      refreshProfiles().catch((error) =>
+        console.error("Silent refreshProfiles failed:", error)
+      );
     });
   };
 
@@ -175,24 +243,42 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  console.log("ProfileCard rendering for profile:", profile.profileName, "tabs:", profile.tabs);
+  console.log(
+    "ProfileCard rendering for profile:",
+    profile.profileName,
+    "tabs:",
+    profile.tabs
+  );
 
   return (
     <div
-      className={`bg-white p-4 rounded shadow mb-4 ${profile.isCurrent ? "border-2 border-blue-500" : ""}`}
+      className={`bg-white p-4 rounded shadow mb-4 ${
+        profile.isCurrent ? "border-2 border-blue-500" : ""
+      }`}
     >
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-lg font-semibold">
           {profile.profileName} {profile.isCurrent && "(Current)"}
         </h2>
-        <button
-          className="bg-red-500 text-white px-2 py-1 rounded text-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={deleteProfile}
-          disabled={isOperationPending[`delete-profile-${profile.profileId}`]}
-          title="Delete profile"
-        >
-          Delete Profile
-        </button>
+        <div>
+          {!profile.isCurrent && (
+            <button
+              className="text-sm text-yellow-600 mr-4"
+              onClick={() => onToggleHide(profile.profileId, !profile.isHidden)}
+            >
+              {profile.isHidden ? "Show" : "Hide"}
+            </button>
+          )}
+
+          <button
+            className="bg-red-500 text-white px-2 py-1 rounded text-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={deleteProfile}
+            disabled={isOperationPending[`delete-profile-${profile.profileId}`]}
+            title="Delete profile"
+          >
+            Delete Profile
+          </button>
+        </div>
       </div>
       <div className="mt-4">
         <h3 className="font-medium mb-2">Tabs:</h3>
@@ -264,7 +350,8 @@ const ProfileCard = ({ profile, fetchSavedPages, setIsLoading }) => {
                                 toggleMenu(index);
                               }}
                             >
-                              {version.fileName} ({new Date(version.timestamp).toLocaleString()})
+                              {version.fileName} (
+                              {new Date(version.timestamp).toLocaleString()})
                             </a>
                             <button
                               className="text-red-500 hover:text-red-600 delete-button"

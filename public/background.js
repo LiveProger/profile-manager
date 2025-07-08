@@ -13,6 +13,21 @@ async function getServerPort() {
     });
   });
 }
+async function getProfileFilter() {
+  try {
+    const port = await getServerPort();
+    const response = await fetch(`http://localhost:${port}/settings`);
+    if (response.ok) {
+      const filter = await response.json();
+      console.log(12, filter);
+      return filter?.profileFilter || "active";
+    }
+    return null;
+  } catch (error) {
+    console.error("Error determining profileId:", error);
+    return null;
+  }
+}
 
 async function getCurrentProfileId() {
   try {
@@ -106,13 +121,15 @@ async function selectProfile() {
   }
 }
 
-async function updateProfiles(manual = false) {
+async function updateProfiles(manual = false, filterstart) {
   let currentProfileId = await getCurrentProfileId();
+  let filterProfile = filterstart ? filterstart : await getProfileFilter();
+
   const port = await getServerPort();
   if (!currentProfileId && manual) {
     console.log("No valid profileId, sending profiles for selection");
     const profiles = await fetch(
-      `http://localhost:${port}/profiles`
+      `http://localhost:${port}/profiles?filter=${filterProfile}`
     ).then((res) => res.json());
     console.log("Profiles for selection:", profiles);
     chrome.runtime.sendMessage({
@@ -143,20 +160,11 @@ async function updateProfiles(manual = false) {
       !tab.url.startsWith("chrome-extension://") &&
       tab.status === "complete"
   );
-  console.log(
-    "Current valid tabs:",
-    validTabs.map((t) => ({ id: t.id, title: t.title, url: t.url }))
-  );
 
   let currentProfileName = "Unknown Profile";
   try {
     const response = await fetch(
       `http://localhost:${port}/profile-name?profileId=${currentProfileId}`
-    );
-    console.log(
-      "Response from /profile-name:",
-      response.status,
-      response.statusText
     );
     if (response.ok) {
       const { profileName } = await response.json();
@@ -165,12 +173,6 @@ async function updateProfiles(manual = false) {
   } catch (error) {
     console.error("Error fetching profile name:", error);
   }
-
-  console.log("Profile info:", {
-    currentProfileId,
-    currentProfileName,
-    tabCount: validTabs.length,
-  });
 
   try {
     const postResponse = await fetch(`http://localhost:${port}/profiles`, {
@@ -187,26 +189,16 @@ async function updateProfiles(manual = false) {
         })),
       }),
     });
-    console.log(
-      "POST /profiles response:",
-      postResponse.status,
-      postResponse.statusText
-    );
     if (!postResponse.ok) {
       const errorText = await postResponse.text();
-      console.error("POST /profiles error details:", errorText);
       throw new Error(
         `POST /profiles failed: ${postResponse.statusText} (${errorText})`
       );
     }
 
+    // Передаём параметр filter в запрос /profiles
     const response = await fetch(
-      `http://localhost:${port}/profiles?currentProfileId=${currentProfileId}`
-    );
-    console.log(
-      "GET /profiles response:",
-      response.status,
-      response.statusText
+      `http://localhost:${port}/profiles?currentProfileId=${currentProfileId}&filter=${filterProfile}`
     );
     if (!response.ok) {
       throw new Error(`GET /profiles failed: ${response.statusText}`);
@@ -220,17 +212,16 @@ async function updateProfiles(manual = false) {
       chrome.runtime.sendMessage({ action: "updateProfiles", profiles });
     } else {
       console.warn("No tabs in profiles, delaying update");
-      setTimeout(() => updateProfiles(manual), 1000);
+      setTimeout(() => updateProfiles(manual, filterProfile), 1000);
     }
     return profiles;
   } catch (error) {
     console.error("Error updating profiles:", error.message);
     const response = await fetch(
-      `http://localhost:${port}/profiles?currentProfileId=${currentProfileId}`
+      `http://localhost:${port}/profiles?currentProfileId=${currentProfileId}&filter=${filterProfile}`
     );
     if (response.ok) {
       const profiles = await response.json();
-      console.log("Fallback profiles:", profiles);
       chrome.runtime.sendMessage({ action: "updateProfiles", profiles });
       return profiles;
     }
@@ -513,8 +504,18 @@ async function openInProfile(url, profileId) {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Received message:", request);
-  if (request.action === "getProfiles") {
-    updateProfiles(true)
+  if (request.action === "getProfilesFilter") {
+    getProfileFilter()
+      .then((filter) => {
+        sendResponse({ filter });
+      })
+      .catch((error) => {
+        console.error("Error in getProfilesFilter:", error);
+        sendResponse({ error: error.message });
+      });
+    return true;
+  } else if (request.action === "getProfiles") {
+    updateProfiles(true, request?.filter)
       .then((profiles) => {
         console.log("Sending profiles to UI:", profiles);
         sendResponse({ profiles });

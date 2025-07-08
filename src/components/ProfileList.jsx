@@ -377,6 +377,43 @@ const ProfileList = () => {
     return groups;
   }, [displayedSavedPages]);
 
+  const [profileFilter, setProfileFilter] = useState("active");
+
+  function getFilter() {
+    chrome.runtime.sendMessage({ action: "getProfilesFilter" }, (response) => {
+      console.log(13, response);
+      if (response?.filter) {
+        setProfileFilter(response?.filter);
+      }
+    });
+  }
+  useEffect(() => {
+    getFilter();
+  }, [profiles]);
+
+  const handleFilterChange = (newFilter) => {
+    setProfileFilter(newFilter);
+    setIsLoading(true);
+    fetch("http://localhost:3000/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "profileFilter", value: newFilter }),
+    })
+      .then(() => {
+        // Вызываем refreshProfiles и синхронизируем selectedProfileId
+        return refreshProfiles(newFilter).then(() => {
+          chrome.storage.local.get(["profileId"], (result) => {
+            setSelectedProfileId(result.profileId?.toLowerCase() || "");
+            setIsLoading(false);
+          });
+        });
+      })
+      .catch((error) => {
+        console.error("Ошибка при переключении фильтра:", error);
+        setIsLoading(false);
+      });
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6 relative">
       <ToastContainer
@@ -718,12 +755,41 @@ const ProfileList = () => {
         </div>
       )}
 
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => handleFilterChange("active")}
+          className={`px-3 py-1 rounded ${
+            profileFilter === "active"
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200"
+          }`}
+        >
+          Show Active
+        </button>
+        <button
+          onClick={() => handleFilterChange("all")}
+          className={`px-3 py-1 rounded ${
+            profileFilter === "all" ? "bg-blue-500 text-white" : "bg-gray-200"
+          }`}
+        >
+          Show All
+        </button>
+      </div>
+
       {sortedProfiles.map((profile) => (
         <ProfileCard
           key={profile.profileId}
           profile={profile}
           fetchSavedPages={fetchSavedPages}
           setIsLoading={setIsLoading}
+          onToggleHide={async (profileId, isHidden) => {
+            await fetch("http://localhost:3000/profile/visibility", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ profileId, isHidden }),
+            });
+            refreshProfiles(profileFilter);
+          }}
         />
       ))}
     </div>
